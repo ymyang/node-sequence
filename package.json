@@ -1,0 +1,30 @@
+{
+  "name": "node-sequence",
+  "version": "1.0.0",
+  "description": "node generate id from db",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ymyang/node-sequence.git"
+  },
+  "keywords": [
+    "sequence",
+    "generation"
+  ],
+  "author": "ymyang",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ymyang/node-sequence/issues"
+  },
+  "homepage": "https://github.com/ymyang/node-sequence#readme",
+  "dependencies": {
+    "bluebird": "^2.9.34",
+    "lodash": "^3.10.1",
+    "mysql": "^2.8.0",
+    "sequelize": "^3.5.1",
+    "winston": "^1.0.1"
+  }
+}
