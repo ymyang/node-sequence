@@ -1,10 +1,12 @@
 /**
  * Created by yang on 2015/6/24.
  */
+'use strict';
+
 var Promise = require('bluebird');
+var _ = require('lodash');
 var sequelize = require('../models').sequelize;
 var Sequence = require('../models/').Sequence;
-var _ = require('lodash');
 
 var seq = module.exports = {};
 
@@ -17,25 +19,38 @@ const SQL_SELECT_SEQ = "SELECT `seq_name` AS `seqName`, `seq_value` AS `seqValue
 
 var currentSeqValue = INIT_VALUE;
 var maxSeqValue = 0;
+var initialized = false;
+
+//_setupSeqValue(1);
 
 seq.getNextId = function (max) {
-    if (max && max > 1) {
-        var tasks = _.range(max).map(function() {
-            return seq.getNextId();
-        });
-
-        return Promise.all(tasks);
-    } else {
-        if (currentSeqValue < maxSeqValue) {
-            return Promise.resolve(++currentSeqValue);
-        }
-        return setupSeqValue().then(function () {
-            return Promise.resolve(++currentSeqValue);
-        });
+    let num = max || 1;
+    currentSeqValue += num;
+    if (initialized && currentSeqValue < maxSeqValue) {
+        return _buildResult(max);
     }
+    return _setupSeqValue(num).then(function () {
+        return _buildResult(max);
+    });
 };
 
-function setupSeqValue() {
+function _buildResult(max) {
+    if (max) {
+        let values = _.range(max).map(function(i) {
+            return _finalSeqValue(currentSeqValue - max + i + 1);
+        });
+        return Promise.resolve(values);
+    } else {
+        let seqValue = _finalSeqValue(currentSeqValue);
+        return Promise.resolve(seqValue);
+    }
+}
+
+function _finalSeqValue(value) {
+    return 1000*value + parseInt(config.serverId);
+}
+
+function _setupSeqValue(num) {
     return new Promise(function (resolve, reject) {
         sequelize.transaction({autocommit: false}).then(function (t) {
             sequelize.query(SQL_SELECT_SEQ, {
@@ -44,12 +59,20 @@ function setupSeqValue() {
                 model: Sequence
             }).then(function (seq) {
                 if (seq[0]) {
-                    var _seqValueInDb = seq[0].seqValue;
-                    //console.log('_seqValueInDb:', _seqValueInDb, ', currentSeqValue:', currentSeqValue);
-                    if (currentSeqValue === INIT_VALUE || _seqValueInDb <= currentSeqValue) {
-                        currentSeqValue = _seqValueInDb;
+                    let _seqValueInDB = seq[0].dataValues.seqValue;
+                    console.log('_seqValueInDB:', _seqValueInDB, ', currentSeqValue:', currentSeqValue);
+
+                    if (!initialized || _seqValueInDB <= currentSeqValue) {
+                        if (initialized) {
+                            currentSeqValue += num;
+                        } else {
+                            currentSeqValue = _seqValueInDB + num;
+                        }
+                        initialized = true;
+
                         maxSeqValue = currentSeqValue + CACHE_SIZE;
-                        //console.log('currentSeqValue:', currentSeqValue);
+
+                        console.log('currentSeqValue:', currentSeqValue, ', maxSeqValue:', maxSeqValue);
                         return Sequence.update({
                             seqValue: maxSeqValue
                         }, {
@@ -57,14 +80,16 @@ function setupSeqValue() {
                             transaction: t
                         });
                     } else {
+                        currentSeqValue += num;
                         return Promise.resolve();
                     }
                 } else {
-                    currentSeqValue = INIT_VALUE;
+                    currentSeqValue = INIT_VALUE + num;
                     maxSeqValue = currentSeqValue + CACHE_SIZE;
-                    seq = {};
-                    seq.seqName = GLOBAL_ID;
-                    seq.seqValue = maxSeqValue;
+                    seq = {
+                        seqName: GLOBAL_ID,
+                        seqValue: maxSeqValue
+                    };
                     return Sequence.create(seq, {transaction: t});
                 }
             }).then(function () {
@@ -77,8 +102,3 @@ function setupSeqValue() {
         });
     });
 }
-
-
-
-
-
